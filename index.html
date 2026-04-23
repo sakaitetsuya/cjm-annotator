@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>感情の谷を探せ — CJMドラッグ版 / HCI 第6回</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c0e14;--surf:#13161f;--surf2:#1a1e2b;
+  --border:#232838;--border2:#2e3548;
+  --text:#dde3f5;--muted:#5d6680;
+  --pre:#4e8cff;--mid:#f0932b;--post:#44d9a0;
+  --pos:#44d9a0;--neg:#ff5e5e;--peak:#f0932b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh;overflow-x:hidden;}
+
+/* HEADER */
+.hdr{
+  padding:14px 28px 12px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;background:var(--surf);
+}
+.hdr-eyebrow{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;}
+.hdr-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;letter-spacing:-.02em;}
+.hdr-title em{color:var(--neg);font-style:normal;}
+.hdr-title strong{color:var(--pos);font-weight:800;}
+.sc-tabs{display:flex;gap:2px;background:var(--border);border-radius:6px;padding:2px;}
+.sc-tab{padding:7px 15px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:'Noto Sans JP',sans-serif;transition:background .15s,color .15s;}
+.sc-tab.active{background:var(--surf2);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.4);}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:1fr 296px;min-height:calc(100vh - 58px);}
+@media(max-width:820px){.layout{grid-template-columns:1fr;}}
+
+/* LEFT */
+.left{padding:18px 22px 48px;display:flex;flex-direction:column;gap:18px;}
+
+/* phase strip */
+.phase-strip{display:flex;border:1px solid var(--border2);border-radius:8px;overflow:hidden;}
+.ph{flex:1;padding:8px 12px;background:var(--surf);border-right:1px solid var(--border2);}
+.ph:last-child{border-right:none;}
+.ph-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:2px;}
+.ph-name{font-size:12px;font-weight:700;}
+
+/* chart */
+.chart-box{background:var(--surf);border:1px solid var(--border2);border-radius:12px;padding:18px 14px 12px 10px;position:relative;box-shadow:0 4px 32px rgba(0,0,0,.3);}
+.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:0 4px;}
+.chart-title-txt{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;}
+.legend{display:flex;gap:12px;}
+.leg{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);}
+.leg-dot{width:7px;height:7px;border-radius:50%;}
+
+.chart-wrap{display:flex;gap:0;}
+.y-axis{display:flex;flex-direction:column;justify-content:space-between;width:26px;padding:5px 0;flex-shrink:0;}
+.y-tick{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);text-align:right;line-height:1;}
+.canvas-area{flex:1;position:relative;}
+canvas#chart{display:block;width:100%;touch-action:none;}
+.canvas-area.dragging{cursor:ns-resize;}
+
+.hint-drag{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;
+  pointer-events:none;transition:opacity .5s;text-align:center;line-height:1.9;
+}
+
+/* x labels */
+.x-labels{display:flex;margin-left:26px;margin-top:5px;}
+.x-label{flex:1;text-align:center;font-size:10px;color:var(--muted);line-height:1.4;cursor:pointer;transition:color .15s;padding:0 2px;}
+.x-label:hover{color:var(--text);}
+.x-label.sel{color:var(--text);font-weight:700;}
+.xl-emoji{font-size:13px;display:block;}
+.xl-name{font-size:9px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* pain callout */
+.pain-callout{margin-top:8px;background:rgba(255,94,94,.1);border:1px solid rgba(255,94,94,.3);border-radius:7px;padding:9px 13px;display:none;font-size:12px;color:var(--neg);font-weight:700;animation:fadeUp .3s ease;}
+.pain-callout.show{display:block;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+/* step detail */
+.step-detail{background:var(--surf);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;min-height:86px;transition:border-color .3s;}
+.sd-top{display:flex;align-items:flex-start;gap:11px;margin-bottom:7px;}
+.sd-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:12px;font-weight:800;flex-shrink:0;color:white;}
+.sd-body{flex:1;}
+.sd-action{font-size:13px;font-weight:700;margin-bottom:3px;}
+.sd-thought{font-size:11px;color:var(--muted);font-style:italic;line-height:1.6;}
+.sd-score{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;line-height:1;margin-left:auto;transition:color .2s;}
+.sd-tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;font-family:'DM Mono',monospace;letter-spacing:.06em;}
+.sd-hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.7;}
+
+/* RIGHT */
+.right{background:var(--surf);border-left:1px solid var(--border);padding:18px 16px 40px;overflow-y:auto;display:flex;flex-direction:column;gap:20px;}
+.panel-h{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.15em;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--border2);padding-bottom:6px;margin-bottom:10px;}
+.stat-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:6px;}
+.stat-box{background:var(--surf2);border:1px solid var(--border2);border-radius:8px;padding:9px 11px;}
+.stat-val{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;line-height:1;margin-bottom:2px;}
+.stat-lbl{font-size:10px;color:var(--muted);}
+.ux-item{background:var(--surf2);border:1px solid var(--border2);border-radius:8px;padding:9px 11px;margin-bottom:7px;display:flex;gap:9px;align-items:flex-start;}
+.ux-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+.ux-name{font-size:12px;font-weight:700;margin-bottom:2px;}
+.ux-desc{font-size:11px;color:var(--muted);line-height:1.6;}
+.prop-item{background:var(--surf2);border-left:3px solid var(--border2);border-radius:0 7px 7px 0;padding:9px 11px;font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:6px;display:none;animation:fadeUp .3s ease;}
+.prop-item.show{display:block;color:var(--text);}
+.prop-step{font-size:10px;font-weight:700;margin-bottom:3px;}
+.export-area{background:var(--surf2);border:1px solid var(--border2);border-radius:10px;padding:14px;text-align:center;}
+.export-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;background:var(--text);color:var(--bg);border:none;border-radius:7px;padding:10px;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:opacity .15s,transform .1s;}
+.export-btn:hover{opacity:.86;transform:translateY(-1px);}
+.export-note{font-size:11px;color:var(--muted);margin-top:6px;}
+.reset-btn{display:block;width:100%;background:transparent;border:1px solid var(--border2);color:var(--muted);border-radius:7px;padding:9px;font-size:12px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:border-color .2s,color .2s;}
+.reset-btn:hover{border-color:var(--text);color:var(--text);}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);font-size:12px;font-weight:700;font-family:'Noto Sans JP',sans-serif;padding:8px 20px;border-radius:99px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:100;white-space:nowrap;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <div class="hdr-eyebrow">HCI 第6回 — CJMアノテーター / ドラッグ版</div>
+    <div class="hdr-title">感情の<em>谷</em>を<strong>自分の手で描け</strong></div>
+  </div>
+  <div class="sc-tabs">
+    <button class="sc-tab active" onclick="loadSc(0)">📱 スマホ初回登録</button>
+    <button class="sc-tab"       onclick="loadSc(1)">🍜 大学食堂</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="left">
+    <div class="phase-strip" id="phaseStrip"></div>
+
+    <div class="chart-box">
+      <div class="chart-header">
+        <div class="chart-title-txt">感情曲線 — ドットを上下にドラッグ</div>
+        <div class="legend">
+          <div class="leg"><div class="leg-dot" style="background:var(--pos)"></div>ポジティブ</div>
+          <div class="leg"><div class="leg-dot" style="background:var(--neg)"></div>ペイン</div>
+          <div class="leg"><div class="leg-dot" style="background:var(--peak)"></div>ピーク</div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <div class="y-axis">
+          <div class="y-tick">+3</div><div class="y-tick">+2</div><div class="y-tick">+1</div>
+          <div class="y-tick" style="color:var(--border2)">0</div>
+          <div class="y-tick">−1</div><div class="y-tick">−2</div><div class="y-tick">−3</div>
+        </div>
+        <div class="canvas-area" id="canvasArea">
+          <canvas id="chart"></canvas>
+          <div class="hint-drag" id="hintDrag">↕ ドットをドラッグして<br>感情スコアを設定してください</div>
+        </div>
+      </div>
+      <div class="x-labels" id="xLabels"></div>
+      <div class="pain-callout" id="painCallout"></div>
+    </div>
+
+    <div class="step-detail" id="stepDetail">
+      <div style="color:var(--muted);font-size:13px;text-align:center;padding:14px 0;">
+        グラフのドットをクリック・ドラッグするか、ラベルを選んでください
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div>
+      <div class="panel-h">📊 スコアサマリー</div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="stat-val" id="sMin" style="color:var(--neg)">—</div><div class="stat-lbl">最低スコア</div></div>
+        <div class="stat-box"><div class="stat-val" id="sMax" style="color:var(--pos)">—</div><div class="stat-lbl">最高スコア</div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="stat-val" id="sPain" style="color:var(--neg)">—</div><div class="stat-lbl">ペインポイント数</div></div>
+        <div class="stat-box"><div class="stat-val" id="sAvg" style="color:var(--muted)">—</div><div class="stat-lbl">平均スコア</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="panel-h">⏱ UXの3段階</div>
+      <div id="uxPhases"></div>
+    </div>
+    <div>
+      <div class="panel-h">💡 改善提案</div>
+      <div id="proposals"></div>
+      <div id="propHint" style="font-size:11px;color:var(--muted);">スコア −1 以下のステップに改善案が表示されます。</div>
+    </div>
+    <div class="export-area">
+      <button class="export-btn" onclick="exportPng()">📥 曲線を画像で保存</button>
+      <div class="export-note">振り返りレポートに貼り付けできます</div>
+    </div>
+    <button class="reset-btn" onclick="resetScores()">↺ スコアをリセット</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════
+// DATA
+// ════════════════════════════════════
+const SC=[
+  {id:'app',name:'スマホアプリ 初回登録',steps:[
+    {phase:'pre', emoji:'🔍',name:'アプリを発見',   thought:'"便利そう、使ってみようかな"',             def:2,  p:'アプリストアの説明・スクショを充実させ、機能と安全性を事前に伝える。'},
+    {phase:'pre', emoji:'📲',name:'インストール',   thought:'"この権限要求…本当に必要？怖いな"',         def:-1, p:'権限要求には必ず目的を添える（例：カメラ→プロフィール写真の撮影のみ）。'},
+    {phase:'mid', emoji:'📝',name:'フォーム入力',   thought:'"項目多すぎ。パスワード条件も複雑…"',       def:-2, p:'入力項目を最小限に絞り、パスワード要件をリアルタイム表示する。'},
+    {phase:'mid', emoji:'✉️',name:'メール認証待ち', thought:'"認証メールが来ない…届いてるのかな"',       def:-3, p:'認証メールを即時送信し、「届かない場合」のリンクを直後に表示する。'},
+    {phase:'mid', emoji:'🎉',name:'登録完了',       thought:'"なるほど、これは使えそう"',                def:2,  p:''},
+    {phase:'post',emoji:'📬',name:'翌日：通知',     thought:'"また使ってみようかな"',                    def:1,  p:'通知頻度・タイミングをユーザーが自由に設定できるようにする。'},
+  ]},
+  {id:'cafeteria',name:'大学食堂',steps:[
+    {phase:'pre', emoji:'🤔',name:'メニュー確認',   thought:'"今日は何があるかな、混んでるかな"',         def:1,  p:'Webやアプリで当日メニューと混雑状況を事前公開する。'},
+    {phase:'mid', emoji:'🚶',name:'行列に並ぶ',     thought:'"想像より長い…授業に間に合うかな"',         def:-2, p:'ピーク時の人員補強や事前注文システムで待ち時間を短縮する。'},
+    {phase:'mid', emoji:'🍱',name:'メニューを選ぶ', thought:'"写真がないし、何だか分かりにくい"',         def:0,  p:'メニューに写真・カロリー・アレルゲン情報を見やすく掲示する。'},
+    {phase:'mid', emoji:'💳',name:'券売機で支払い', thought:'"操作が分かりにくい、後ろが詰まってる"',     def:-2, p:'券売機UIを直感的に改善し、電子マネー・スマホ決済を追加する。'},
+    {phase:'mid', emoji:'🪑',name:'席を探す',       thought:'"空席がない…どこに座ろう"',                 def:-1, p:'混雑マップや座席予約システムで空席を可視化する。'},
+    {phase:'post',emoji:'😊',name:'食事・片付け',   thought:'"美味しかった、また来よう"',                 def:3,  p:''},
+  ]},
+];
+
+// ════════════════════════════════════
+// STATE
+// ════════════════════════════════════
+let scIdx=0, scores=[], selStep=null, dragIdx=null;
+const CH=190, PAD={l:8,r:14,t:14,b:14};
+let cW=0;
+
+const canvas=document.getElementById('chart');
+const ctx=canvas.getContext('2d');
+const area=document.getElementById('canvasArea');
+
+// ════════════════════════════════════
+// GEOMETRY
+// ════════════════════════════════════
+function xOf(i){ return PAD.l+(i/(scores.length-1))*(cW-PAD.l-PAD.r); }
+function yOf(v){ return PAD.t+((3-v)/6)*(CH-PAD.t-PAD.b); }
+function yToV(y){ return Math.max(-3,Math.min(3,Math.round(3-((y-PAD.t)/(CH-PAD.t-PAD.b))*6))); }
+function dr(i){ return (scores[i]<=-2||(scores[i]===Math.max(...scores)&&scores[i]>=2))?9:7; }
+function hit(mx,my){
+  for(let i=0;i<scores.length;i++){
+    const dx=mx-xOf(i),dy=my-yOf(scores[i]);
+    if(Math.sqrt(dx*dx+dy*dy)<=dr(i)+6) return i;
+  } return -1;
+}
+
+// ════════════════════════════════════
+// DRAW
+// ════════════════════════════════════
+function draw(){
+  ctx.save(); ctx.clearRect(0,0,cW,CH);
+  const n=scores.length;
+  const phC={pre:'#4e8cff',mid:'#f0932b',post:'#44d9a0'};
+  const sc=SC[scIdx];
+
+  // phase bands
+  let runs=[],cur=null;
+  sc.steps.forEach((s,i)=>{ if(!cur||s.phase!==cur.phase){cur={phase:s.phase,from:i,to:i};runs.push(cur);}else cur.to=i; });
+  const seg=(cW-PAD.l-PAD.r)/(n-1);
+  runs.forEach(r=>{
+    const x1=xOf(r.from)-(r.from===0?0:seg*.5);
+    const x2=xOf(r.to)+(r.to===n-1?0:seg*.5);
+    ctx.fillStyle=ha(phC[r.phase]||'#aaa',.07);
+    ctx.fillRect(x1,PAD.t,x2-x1,CH-PAD.t-PAD.b);
+  });
+
+  // grid
+  for(let v=-3;v<=3;v++){
+    const y=yOf(v);
+    ctx.strokeStyle=v===0?'rgba(255,255,255,.13)':'rgba(255,255,255,.04)';
+    ctx.lineWidth=v===0?1.5:1;
+    ctx.setLineDash(v===0?[]:[3,5]);
+    ctx.beginPath();ctx.moveTo(PAD.l,y);ctx.lineTo(cW-PAD.r,y);ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // fill
+  const g=ctx.createLinearGradient(0,PAD.t,0,CH-PAD.b);
+  g.addColorStop(0,'rgba(68,217,160,.16)');g.addColorStop(.5,'rgba(93,102,128,.03)');g.addColorStop(1,'rgba(255,94,94,.16)');
+  ctx.beginPath();ctx.moveTo(xOf(0),yOf(scores[0]));
+  for(let i=1;i<n;i++) bz(xOf(i-1),yOf(scores[i-1]),xOf(i),yOf(scores[i]));
+  ctx.lineTo(xOf(n-1),CH-PAD.b);ctx.lineTo(xOf(0),CH-PAD.b);ctx.closePath();
+  ctx.fillStyle=g;ctx.fill();
+
+  // curve
+  ctx.beginPath();ctx.moveTo(xOf(0),yOf(scores[0]));
+  for(let i=1;i<n;i++) bz(xOf(i-1),yOf(scores[i-1]),xOf(i),yOf(scores[i]));
+  ctx.strokeStyle='rgba(221,227,245,.7)';ctx.lineWidth=2.5;ctx.stroke();
+
+  // dots
+  scores.forEach((v,i)=>{
+    const x=xOf(i),y=yOf(v),r=dr(i);
+    const isPain=v<=-2, isPeak=v===Math.max(...scores)&&v>=2, isSel=i===selStep;
+    if(isPain||isPeak||isSel){
+      ctx.beginPath();ctx.arc(x,y,r+5,0,Math.PI*2);
+      ctx.fillStyle=isPain?'rgba(255,94,94,.18)':isPeak?'rgba(240,147,43,.18)':'rgba(78,140,255,.2)';ctx.fill();
+    }
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle=isPain?'#ff5e5e':isPeak?'#f0932b':v>0?'#44d9a0':v<0?'#ff5e5e88':'#5d6680';
+    ctx.strokeStyle=isSel?'#fff':'rgba(255,255,255,.5)';ctx.lineWidth=isSel?2.5:1.5;
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle=isPain?'#ff5e5e':isPeak?'#f0932b':'#dde3f5';
+    ctx.font="bold 10px 'DM Mono',monospace";ctx.textAlign='center';
+    ctx.fillText((v>0?'+':'')+v,x,y-r-5);
+  });
+  ctx.restore();
+}
+function bz(x0,y0,x1,y1){const cx=(x0+x1)/2;ctx.bezierCurveTo(cx,y0,cx,y1,x1,y1);}
+function ha(hex,a){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return `rgba(${r},${g},${b},${a})`;}
+
+// ════════════════════════════════════
+// POINTER
+// ════════════════════════════════════
+function getXY(e){
+  const rect=canvas.getBoundingClientRect();
+  const src=e.touches?e.touches[0]:e;
+  return[src.clientX-rect.left,src.clientY-rect.top];
+}
+canvas.addEventListener('pointerdown',e=>{
+  const[mx,my]=getXY(e);const h=hit(mx,my);
+  if(h>=0){dragIdx=h;selStep=h;area.classList.add('dragging');canvas.setPointerCapture(e.pointerId);renderDetail();draw();}
+});
+canvas.addEventListener('pointermove',e=>{
+  if(dragIdx===null)return;e.preventDefault();
+  const[,my]=getXY(e);const nv=yToV(my);
+  if(nv!==scores[dragIdx]){
+    scores[dragIdx]=nv;
+    document.getElementById('hintDrag').style.opacity='0';
+    draw();updateCallout();renderRight();renderDetail();renderXLabels();
+  }
+});
+canvas.addEventListener('pointerup',()=>{if(dragIdx!==null){area.classList.remove('dragging');dragIdx=null;}});
+canvas.addEventListener('click',e=>{
+  const[mx,my]=getXY(e);const h=hit(mx,my);
+  if(h>=0){selStep=h;renderDetail();renderXLabels();draw();}
+});
+
+// ════════════════════════════════════
+// PAIN CALLOUT
+// ════════════════════════════════════
+function updateCallout(){
+  const sc=SC[scIdx];
+  const mn=Math.min(...scores),idx=scores.indexOf(mn);
+  const el=document.getElementById('painCallout');
+  if(mn<=-2){el.textContent=`🔴 ペインポイント検出：STEP ${idx+1}「${sc.steps[idx].name}」（スコア ${mn}）`;el.classList.add('show');}
+  else el.classList.remove('show');
+}
+
+// ════════════════════════════════════
+// X LABELS
+// ════════════════════════════════════
+function renderXLabels(){
+  const sc=SC[scIdx];
+  const wrap=document.getElementById('xLabels');
+  wrap.innerHTML='';
+  sc.steps.forEach((s,i)=>{
+    const d=document.createElement('div');
+    d.className='x-label'+(i===selStep?' sel':'');
+    d.innerHTML=`<span class="xl-emoji">${s.emoji}</span><span class="xl-name">${s.name}</span>`;
+    d.onclick=()=>{selStep=i;renderDetail();renderXLabels();draw();};
+    wrap.appendChild(d);
+  });
+}
+
+// ════════════════════════════════════
+// STEP DETAIL
+// ════════════════════════════════════
+function renderDetail(){
+  const el=document.getElementById('stepDetail');
+  if(selStep===null){el.innerHTML=`<div style="color:var(--muted);font-size:13px;text-align:center;padding:14px 0;">グラフのドットをクリック・ドラッグするか、ラベルを選んでください</div>`;return;}
+  const sc=SC[scIdx],s=sc.steps[selStep],v=scores[selStep];
+  const phC={pre:'var(--pre)',mid:'var(--mid)',post:'var(--post)'}[s.phase];
+  const phL={pre:'予期的UX（使用前）',mid:'エピソード的UX（使用中）',post:'累積的UX（使用後）'}[s.phase];
+  const sC=v>0?'var(--pos)':v<0?'var(--neg)':'var(--muted)';
+  const isPain=v<=-2;
+  el.style.borderColor=isPain?'rgba(255,94,94,.4)':'var(--border2)';
+  el.innerHTML=`
+    <div class="sd-top">
+      <div class="sd-num" style="background:${phC}">${selStep+1}</div>
+      <div class="sd-body">
+        <div class="sd-action">${s.emoji} ${s.name}${isPain?'<span style="font-size:10px;color:var(--neg);background:rgba(255,94,94,.15);border:1px solid rgba(255,94,94,.3);padding:1px 6px;border-radius:3px;margin-left:6px;">⚠ ペインポイント</span>':''}</div>
+        <div class="sd-thought">${s.thought}</div>
+      </div>
+      <div class="sd-score" style="color:${sC}">${v>0?'+':''}${v}</div>
+    </div>
+    <span class="sd-tag" style="background:${phC}22;color:${phC};">${phL}</span>
+    ${s.p&&v<=-1?`<div class="sd-hint">💡 <strong style="color:var(--text)">改善案：</strong>${s.p}</div>`:''}
+    <div class="sd-hint" style="margin-top:5px;">↕ ドットを上下にドラッグしてスコアを変更できます</div>`;
+}
+
+// ════════════════════════════════════
+// PHASE STRIP
+// ════════════════════════════════════
+function renderPhaseStrip(){
+  const sc=SC[scIdx];
+  const el=document.getElementById('phaseStrip');el.innerHTML='';
+  [{key:'pre',label:'予期的UX',name:'使用前',c:'var(--pre)'},{key:'mid',label:'エピソード的UX',name:'使用中',c:'var(--mid)'},{key:'post',label:'累積的UX',name:'使用後',c:'var(--post)'}].forEach(ph=>{
+    const cnt=sc.steps.filter(s=>s.phase===ph.key).length;
+    const d=document.createElement('div');d.className='ph';
+    d.innerHTML=`<div class="ph-label" style="color:${ph.c}">${ph.label}</div><div class="ph-name">${ph.name} / ${cnt}ステップ</div>`;
+    el.appendChild(d);
+  });
+}
+
+// ════════════════════════════════════
+// RIGHT PANEL
+// ════════════════════════════════════
+function renderRight(){
+  const sc=SC[scIdx];
+  const mn=Math.min(...scores),mx=Math.max(...scores);
+  const avg=(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1);
+  const pains=scores.filter(v=>v<=-2).length;
+  document.getElementById('sMin').textContent=(mn>0?'+':'')+mn;
+  document.getElementById('sMax').textContent=(mx>0?'+':'')+mx;
+  document.getElementById('sAvg').textContent=(parseFloat(avg)>=0?'+':'')+avg;
+  document.getElementById('sPain').textContent=pains;
+
+  const phEl=document.getElementById('uxPhases');phEl.innerHTML='';
+  [{key:'pre',label:'予期的UX（使用前）',desc:'第一印象・期待感・不安が形成される段階。',c:'var(--pre)'},
+   {key:'mid',label:'エピソード的UX（使用中）',desc:'実際の操作中の感情。ユーザビリティの問題が現れる。',c:'var(--mid)'},
+   {key:'post',label:'累積的UX（使用後）',desc:'記憶・満足・再利用意欲。「また使いたい」を生む。',c:'var(--post)'},
+  ].forEach(ph=>{
+    const idx=sc.steps.map((s,i)=>s.phase===ph.key?i:-1).filter(i=>i>=0);
+    if(!idx.length)return;
+    const pa=(idx.reduce((a,i)=>a+scores[i],0)/idx.length).toFixed(1);
+    const bad=parseFloat(pa)<0;
+    const d=document.createElement('div');d.className='ux-item';
+    d.style.borderColor=bad?'rgba(255,94,94,.3)':'var(--border2)';
+    d.innerHTML=`<div class="ux-dot" style="background:${ph.c}"></div><div><div class="ux-name" style="color:${ph.c}">${ph.label} <span style="font-family:'DM Mono',monospace;font-size:11px;color:${bad?'var(--neg)':'var(--pos)'};">${parseFloat(pa)>=0?'+':''}${pa}</span></div><div class="ux-desc">${ph.desc}</div></div>`;
+    phEl.appendChild(d);
+  });
+
+  const propEl=document.getElementById('proposals');propEl.innerHTML='';
+  let shown=0;
+  sc.steps.forEach((s,i)=>{
+    if(scores[i]<=-1&&s.p){
+      const d=document.createElement('div');d.className='prop-item show';d.style.borderLeftColor='var(--neg)';
+      d.innerHTML=`<div class="prop-step">STEP ${i+1}：${s.emoji} ${s.name}（${scores[i]>0?'+':''}${scores[i]}）</div>${s.p}`;
+      propEl.appendChild(d);shown++;
+    }
+  });
+  document.getElementById('propHint').style.display=shown>0?'none':'block';
+}
+
+// ════════════════════════════════════
+// EXPORT
+// ════════════════════════════════════
+function exportPng(){
+  const sc=SC[scIdx];
+  const EW=900,EH=380;
+  const ec=document.createElement('canvas');ec.width=EW;ec.height=EH;
+  const c=ec.getContext('2d');
+  c.fillStyle='#0c0e14';c.fillRect(0,0,EW,EH);
+  c.fillStyle='#dde3f5';c.font="bold 14px 'Noto Sans JP',sans-serif";
+  c.fillText('カスタマージャーニーマップ — '+sc.name,20,28);
+  c.font="10px 'DM Mono',monospace";c.fillStyle='#5d6680';
+  c.fillText('感情スコア: '+scores.map((v,i)=>`S${i+1}:${v>0?'+':''}${v}`).join('  '),20,46);
+  c.drawImage(canvas,0,0,canvas.width/devicePixelRatio,canvas.height/devicePixelRatio,20,60,EW-40,EH-110);
+  const n=sc.steps.length;
+  sc.steps.forEach((s,i)=>{
+    const x=20+(i/(n-1))*(EW-40);
+    c.textAlign='center';c.font="10px 'Noto Sans JP',sans-serif";c.fillStyle='#dde3f5';
+    c.fillText(s.emoji+s.name,x,EH-14);
+    c.font="10px 'DM Mono',monospace";c.fillStyle='#5d6680';
+    c.fillText((scores[i]>0?'+':'')+scores[i],x,EH-28);
+  });
+  const a=document.createElement('a');a.download='cjm_'+sc.id+'.png';a.href=ec.toDataURL('image/png');a.click();
+  showToast('📥 保存しました');
+}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
+
+// ════════════════════════════════════
+// LOAD / RESET
+// ════════════════════════════════════
+function loadSc(idx){
+  scIdx=idx;scores=SC[idx].steps.map(s=>s.def);selStep=null;dragIdx=null;
+  document.getElementById('hintDrag').style.opacity='1';
+  document.querySelectorAll('.sc-tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  renderPhaseStrip();renderXLabels();renderDetail();renderRight();
+  resize();updateCallout();
+}
+function resetScores(){scores=SC[scIdx].steps.map(s=>s.def);selStep=null;document.getElementById('hintDrag').style.opacity='1';draw();updateCallout();renderRight();renderDetail();renderXLabels();showToast('↺ リセットしました');}
+function resize(){
+  const rect=area.getBoundingClientRect();cW=rect.width;
+  canvas.width=cW*devicePixelRatio;canvas.height=CH*devicePixelRatio;
+  canvas.style.width=cW+'px';canvas.style.height=CH+'px';
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  draw();
+}
+window.addEventListener('resize',resize);
+loadSc(0);
+</script>
+</body>
+</html>
